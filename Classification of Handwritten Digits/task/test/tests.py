@@ -1,7 +1,28 @@
 from hstest.stage_test import StageTest
 from hstest.test_case import TestCase
 from hstest.check_result import CheckResult
+from sklearn.exceptions import ConvergenceWarning
+import warnings
+
 import re
+
+# turn off logistic regression convergence warning
+warnings.filterwarnings("ignore", category=ConvergenceWarning)
+
+
+# function to provide better feedback
+def get_model_name(line_reply):
+    idx = line_reply.replace(" ", "").lower().index('model:') + len('model:')
+    model_name_reply = line_reply.replace(" ", "")[idx:]
+    return model_name_reply
+
+
+def get_lines_with_key_words(lines, keywords):
+    lines_with_keywords = []
+    for line in lines:
+        if set(line.lower().split()) & set(keywords):
+            lines_with_keywords.append(line)
+    return lines_with_keywords
 
 
 class CCATest(StageTest):
@@ -14,71 +35,84 @@ class CCATest(StageTest):
         if "" in lines:
             lines = list(filter(lambda a: a != "", lines))
 
+        relevant_lines = get_lines_with_key_words(lines, keywords=['model:', 'accuracy:', 'question:'])
+
         # general
-        if len(lines) < 15:
+        if len(relevant_lines) != 9:
             return CheckResult.wrong(
-                feedback="There is not enough lines in the answer, check the example output at the stage 2")
-        if 'x_train' not in lines[0].lower() \
-            or 'x_test' not in lines[1].lower() \
-            or 'y_train' not in lines[2].lower() \
-            or 'y_test' not in lines[3].lower() \
-            or 'proportion' not in lines[4].lower():
+                feedback=f"Expected 9 lines with \"Model:\"/\"Accuracy:\"/\"Answer to the question:\", found {len(relevant_lines)}\n"
+                         f"Note that the order of the models in the output is important (see the Example section)")
+
+        # models and accuracies print
+        # 1st model
+        model_name_answer = 'KNeighborsClassifier'
+        if model_name_answer not in relevant_lines[0]:
+            model_name_reply = get_model_name(relevant_lines[0])
+            return CheckResult.wrong(feedback=f"Incorrect name of the 1st model\n"
+                                              f"Expected {model_name_answer}, found {model_name_reply}")
+
+        accuracy_reply = re.findall(r'\d*\.\d+|\d+', relevant_lines[1])
+        if len(accuracy_reply) != 1:
+            return CheckResult.wrong(feedback=f'It should be one number in the "Accuracy:" section')
+        # 1% error rate is allowed, right accuracy = 0.935
+        if not 0.99 * 0.935 < float(accuracy_reply[0]) < 1.01 * 0.935:
+            return CheckResult.wrong(feedback=f"Wrong accuracy for the 1st model")
+
+        # 2nd model
+        model_name_answer = 'DecisionTreeClassifier'
+        if model_name_answer not in relevant_lines[2]:
+            model_name_reply = get_model_name(relevant_lines[2])
+            return CheckResult.wrong(feedback=f"Incorrect name of the 1st model\n"
+                                              f"Expected {model_name_answer}, found {model_name_reply}")
+
+        accuracy_reply = re.findall(r'\d*\.\d+|\d+', relevant_lines[3])
+        if len(accuracy_reply) != 1:
+            return CheckResult.wrong(feedback=f'It should be one number in the "Accuracy:" section')
+        # 2% error rate is allowed, right accuracy = 0.761
+        if not 0.98 * 0.761 < float(accuracy_reply[0]) < 1.02 * 0.761:
+            return CheckResult.wrong(feedback=f"Wrong accuracy for the 2nd model")
+
+        # 3rd model
+        model_name_answer = 'LogisticRegression'
+        if model_name_answer not in relevant_lines[4]:
+            model_name_reply = get_model_name(relevant_lines[4])
+            return CheckResult.wrong(feedback=f"Incorrect name of the 1st model\n"
+                                              f"Expected {model_name_answer}, found {model_name_reply}")
+
+        accuracy_reply = re.findall(r'\d*\.\d+|\d+', relevant_lines[5])
+        if len(accuracy_reply) != 1:
+            return CheckResult.wrong(feedback=f'It should be one number in the "Accuracy:" section')
+        # 2% error rate is allowed, right accuracy = 0.874
+        if not float(accuracy_reply[0]) > 0.8:
+            return CheckResult.wrong(feedback=f"Wrong accuracy for the 3rd model")
+
+        # 4th model
+        model_name_answer = 'RandomForestClassifier'
+        if model_name_answer not in relevant_lines[6]:
+            model_name_reply = get_model_name(relevant_lines[6])
+            return CheckResult.wrong(feedback=f"{model_name_reply} is incorrect name of the 4th model\n"
+                                              f"Expected {model_name_answer}, found {model_name_reply}")
+
+        accuracy_reply = re.findall(r'\d*\.\d+|\d+', relevant_lines[7])
+        if len(accuracy_reply) != 1:
+            return CheckResult.wrong(feedback=f'It should be one number in the "Accuracy:" section')
+        # 1% error rate is allowed, right accuracy = 0.939
+        if not 0.99 * 0.939 < float(accuracy_reply[0]) < 1.01 * 0.939:
+            return CheckResult.wrong(feedback=f"Wrong accuracy for the 4th model")
+
+        # answer to the question
+        try:
+            answer_reply = relevant_lines[8].replace(" ", "").split('question:')[1]
+        except IndexError:
+            return CheckResult.wrong(feedback=f'It appears that the answer in the "The answer to the question:" section is either missing or not properly formatted')
+        if 'RandomForestClassifier' not in answer_reply:
+            return CheckResult.wrong(feedback=f'Wrong name of the model in "The answer to the question:" section')
+        best_accuracy_reply = re.findall(r'\d*\.\d+|\d+', relevant_lines[8].replace(" ", "").split('question:')[1])
+        if len(best_accuracy_reply) != 1:
             return CheckResult.wrong(
-                feedback="Something is wrong with the order of answers or in the names of the variables, check the example output at the stage 2")
-
-        # 1st question
-        x_train_shape_reply = list(map(float, re.findall(r'\d*\.\d+|\d+', lines[0])))
-        if len(x_train_shape_reply) != 2:
-            return CheckResult.wrong(feedback="The shape of features' train set should consist of 2 numbers")
-        if x_train_shape_reply[0] != 4200:
-            return CheckResult.wrong(feedback="Wrong number of rows in features' train set")
-        if x_train_shape_reply[1] != 784:
-            return CheckResult.wrong(feedback="Wrong number of columns in the features' train set")
-
-        x_test_shape_reply = list(map(float, re.findall(r'\d*\.\d+|\d+', lines[1])))
-        if len(x_test_shape_reply) != 2:
-            return CheckResult.wrong(feedback="The shape of features' test set should consist of 2 numbers")
-        if x_test_shape_reply[0] != 1800:
-            return CheckResult.wrong(feedback="Wrong number of rows in features' test set")
-        if x_test_shape_reply[1] != 784:
-            return CheckResult.wrong(feedback="Wrong number of columns in features' test set")
-
-        y_train_shape_reply = list(map(float, re.findall(r'\d*\.\d+|\d+', lines[2])))
-        if len(y_train_shape_reply) != 1:
-            return CheckResult.wrong(
-                feedback="The shape of the target variable from the train set should consist of 1 number")
-        if y_train_shape_reply[0] != 4200:
-            return CheckResult.wrong(feedback="Wrong number of rows in the target variable from the train set")
-
-        y_test_shape_reply = list(map(float, re.findall(r'\d*\.\d+|\d+', lines[3])))
-        if len(y_test_shape_reply) != 1:
-            return CheckResult.wrong(
-                feedback="The shape of the target variable from the test set should consist of 1 number")
-        if y_test_shape_reply[0] != 1800:
-            return CheckResult.wrong(feedback="Wrong number of rows in the target variable from the test set")
-
-        # 2nd question
-        proportions_reply_dict = {}
-
-        for line in lines[5:]:
-            # key is the name if the class
-            key = list(map(float, re.findall(r'\d+', line)))
-            # value is the proportion of the class in key
-            value = list(map(float, re.findall(r'\d*\.\d+', line)))
-            if len(key) != 0 and len(value) != 0:
-                if key[0] in list(proportions_reply_dict.keys()):
-                    return CheckResult.wrong(feedback="There are some duplicates in the list of classes")
-                else:
-                    proportions_reply_dict[key[0]] = value[0]
-
-        if set(proportions_reply_dict.keys()) != set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]):
-            return CheckResult.wrong(feedback="Wrong set of classes in the info about proportions")
-
-        right_proportions = [0.1, 0.11, 0.1, 0.1, 0.11, 0.09, 0.1, 0.11, 0.09, 0.1]
-        for class_name, ratio in zip(range(10), right_proportions):
-            if not right_proportions[class_name] * 0.9 < proportions_reply_dict[class_name] < right_proportions[
-                class_name] * 1.1:
-                return CheckResult.wrong(feedback=f"Wrong ratio for class: {class_name}")
+                feedback=f'It should be one number, which represents acccuracy, in "The answer to the question:" section')
+        if not 0.99 * 0.939 < float(best_accuracy_reply[0]) < 1.01 * 0.939:
+            return CheckResult.wrong(feedback=f'Wrong accuracy in "The answer to the question:" section')
 
         return CheckResult.correct()
 

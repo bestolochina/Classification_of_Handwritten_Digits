@@ -5,4 +5,4 @@ content:
   - Train models with default settings
   - Data preprocessing
   - Hyperparameter tuning
-current_task: 1
+current_task: 2
