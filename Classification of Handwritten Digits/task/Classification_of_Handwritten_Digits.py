@@ -15,6 +15,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import Normalizer
 
 
 def fit_predict_eval(model, features_train, features_test, target_train, target_test):
@@ -33,6 +34,10 @@ X, y = X[0:6000], y[0:6000]
 X = np.reshape(X, (X.shape[0], -1))
 x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=40)
 
+normalizer = Normalizer()
+x_train_norm = normalizer.fit_transform(x_train)
+x_test_norm = normalizer.transform(x_test)
+
 models = [KNeighborsClassifier(),
           DecisionTreeClassifier(random_state=40),
           LogisticRegression(random_state=40),
@@ -40,9 +45,11 @@ models = [KNeighborsClassifier(),
 
 for model in models:
     fit_predict_eval(model=model,
-                     features_train=x_train,
-                     features_test=x_test,
+                     features_train=x_train_norm,
+                     features_test=x_test_norm,
                      target_train=y_train,
                      target_test=y_test)
 
-print(f'The answer to the question: RandomForestClassifier - 0.939')
+print(f'''The answer to the 1st question: yes
+
+The answer to the 2nd question: KNeighborsClassifier-0.953, RandomForestClassifier-0.937''')

@@ -38,9 +38,9 @@ class CCATest(StageTest):
         relevant_lines = get_lines_with_key_words(lines, keywords=['model:', 'accuracy:', 'question:'])
 
         # general
-        if len(relevant_lines) != 9:
+        if len(relevant_lines) != 10:
             return CheckResult.wrong(
-                feedback=f"Expected 9 lines with \"Model:\"/\"Accuracy:\"/\"Answer to the question:\", found {len(relevant_lines)}\n"
+                feedback=f"Expected 10 lines with Model:/Accuracy:/Answer to the 1st question:/Answer to the 2nd question:, found {len(relevant_lines)}\n"
                          f"Note that the order of the models in the output is important (see the Example section)")
 
         # models and accuracies print
@@ -54,8 +54,8 @@ class CCATest(StageTest):
         accuracy_reply = re.findall(r'\d*\.\d+|\d+', relevant_lines[1])
         if len(accuracy_reply) != 1:
             return CheckResult.wrong(feedback=f'It should be one number in the "Accuracy:" section')
-        # 1% error rate is allowed, right accuracy = 0.935
-        if not 0.99 * 0.935 < float(accuracy_reply[0]) < 1.01 * 0.935:
+        # 1% error rate is allowed, right accuracy = 0.953
+        if not 0.99 * 0.953 < float(accuracy_reply[0]) < 1.01 * 0.953:
             return CheckResult.wrong(feedback=f"Wrong accuracy for the 1st model")
 
         # 2nd model
@@ -68,8 +68,8 @@ class CCATest(StageTest):
         accuracy_reply = re.findall(r'\d*\.\d+|\d+', relevant_lines[3])
         if len(accuracy_reply) != 1:
             return CheckResult.wrong(feedback=f'It should be one number in the "Accuracy:" section')
-        # 2% error rate is allowed, right accuracy = 0.761
-        if not 0.98 * 0.761 < float(accuracy_reply[0]) < 1.02 * 0.761:
+        # 2% error rate is allowed, right accuracy = 0.781
+        if not 0.98 * 0.781 < float(accuracy_reply[0]) < 1.02 * 0.781:
             return CheckResult.wrong(feedback=f"Wrong accuracy for the 2nd model")
 
         # 3rd model
@@ -82,8 +82,8 @@ class CCATest(StageTest):
         accuracy_reply = re.findall(r'\d*\.\d+|\d+', relevant_lines[5])
         if len(accuracy_reply) != 1:
             return CheckResult.wrong(feedback=f'It should be one number in the "Accuracy:" section')
-        # 2% error rate is allowed, right accuracy = 0.874
-        if not float(accuracy_reply[0]) > 0.8:
+        # 2% error rate is allowed, right accuracy = 0.895
+        if not 0.98 * 0.895 < float(accuracy_reply[0]) < 1.02 * 0.895:
             return CheckResult.wrong(feedback=f"Wrong accuracy for the 3rd model")
 
         # 4th model
@@ -96,23 +96,32 @@ class CCATest(StageTest):
         accuracy_reply = re.findall(r'\d*\.\d+|\d+', relevant_lines[7])
         if len(accuracy_reply) != 1:
             return CheckResult.wrong(feedback=f'It should be one number in the "Accuracy:" section')
-        # 1% error rate is allowed, right accuracy = 0.939
-        if not 0.99 * 0.939 < float(accuracy_reply[0]) < 1.01 * 0.939:
+        # 1% error rate is allowed, right accuracy = 0.937
+        if not 0.99 * 0.937 < float(accuracy_reply[0]) < 1.01 * 0.937:
             return CheckResult.wrong(feedback=f"Wrong accuracy for the 4th model")
 
-        # answer to the question
-        try:
-            answer_reply = relevant_lines[8].replace(" ", "").split('question:')[1]
-        except IndexError:
-            return CheckResult.wrong(feedback=f'It appears that the answer in the "The answer to the question:" section is either missing or not properly formatted')
-        if 'RandomForestClassifier' not in answer_reply:
-            return CheckResult.wrong(feedback=f'Wrong name of the model in "The answer to the question:" section')
-        best_accuracy_reply = re.findall(r'\d*\.\d+|\d+', relevant_lines[8].replace(" ", "").split('question:')[1])
-        if len(best_accuracy_reply) != 1:
+        # 1st question
+        answer_reply = relevant_lines[8].replace(" ", "").split('question:')
+        if len(answer_reply) < 2:
             return CheckResult.wrong(
-                feedback=f'It should be one number, which represents acccuracy, in "The answer to the question:" section')
-        if not 0.99 * 0.939 < float(best_accuracy_reply[0]) < 1.01 * 0.939:
-            return CheckResult.wrong(feedback=f'Wrong accuracy in "The answer to the question:" section')
+                feedback=f'Did not find the answer to the 1st question. Make sure that you provide the answer in the correct format')
+        if 'yes' != answer_reply[1].lower():
+            return CheckResult.wrong(
+                feedback=f'Wrong answer to the 1st queston. Make sure that you provide the answer in the correct format')
+
+        # 2nd question
+        answer_reply = re.split(r'question:|-|,', relevant_lines[9])
+        if len(answer_reply) != 5:
+            return CheckResult.wrong(
+                feedback="Didn't find enough information in the answer to the 2nd question.\n"
+                         "Make sure that you provide the answer in the correct format with ',' and '-' characters like in the Example section")
+
+        if 'KNeighborsClassifier' not in answer_reply[1]:
+            return CheckResult.wrong(feedback=f'Wrong answer to the 2nd question\n'
+                                              f'{answer_reply[1].replace(" ", "")} is incorrect name of the best model')
+        if 'RandomForestClassifier' not in answer_reply[3]:
+            return CheckResult.wrong(feedback=f'Wrong answer to the 2nd question\n'
+                                              f'{answer_reply[3].replace(" ", "")} is incorrect name of the second best model')
 
         return CheckResult.correct()
 
