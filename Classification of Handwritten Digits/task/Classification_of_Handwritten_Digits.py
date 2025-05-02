@@ -16,13 +16,71 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import Normalizer
+from sklearn.model_selection import GridSearchCV
 
 
 def fit_predict_eval(model, features_train, features_test, target_train, target_test):
     model.fit(features_train, target_train)
     y_predict = model.predict(features_test)
     score = accuracy_score(target_test, y_predict)
-    print(f'Model: {model}\nAccuracy: {score}\n')
+    return score
+
+
+def tune_and_evaluate_models(
+    x_train: np.ndarray,
+    x_test: np.ndarray,
+    y_train: np.ndarray,
+    y_test: np.ndarray
+) -> tuple[GridSearchCV, GridSearchCV]:
+
+    # --- KNN GridSearch ---
+    knn_params = {
+        'n_neighbors': [4],
+        'weights': ['distance'],
+        'algorithm': ['auto', 'brute']
+    }
+    # knn_params = {
+    #     'n_neighbors': [3, 4],
+    #     'weights': ['uniform', 'distance'],
+    #     'algorithm': ['auto', 'brute']
+    # }
+
+    knn_grid = GridSearchCV(
+        estimator=KNeighborsClassifier(),
+        param_grid=knn_params,
+        scoring='accuracy',
+        n_jobs=-1
+    )
+    knn_grid.fit(x_train, y_train)
+
+    # --- Random Forest GridSearch ---
+    rf_params = {
+        'n_estimators': [800],
+        'max_depth': [30],
+        'min_samples_split': [2, 5],
+        'min_samples_leaf': [1, 2],
+        'max_features': ['log2'],
+        'class_weight': ['balanced_subsample'],
+        'bootstrap': [True]
+    }
+    # rf_params = {
+    #     'n_estimators': [600, 800],
+    #     'max_depth': [30, 50, None],
+    #     'min_samples_split': [2, 5],
+    #     'min_samples_leaf': [1, 2],
+    #     'max_features': ['sqrt', 'log2'],
+    #     'class_weight': ['balanced_subsample'],
+    #     'bootstrap': [True]
+    # }
+    rf_grid = GridSearchCV(
+        estimator=RandomForestClassifier(random_state=40),
+        param_grid=rf_params,
+        scoring='accuracy',
+        n_jobs=-1
+    )
+    rf_grid.fit(x_train, y_train)
+
+    return knn_grid, rf_grid
 
 
 path = r"C:\Users\aaa\datasets\mnist.npz"
@@ -38,18 +96,21 @@ normalizer = Normalizer()
 x_train_norm = normalizer.fit_transform(x_train)
 x_test_norm = normalizer.transform(x_test)
 
-models = [KNeighborsClassifier(),
-          DecisionTreeClassifier(random_state=40),
-          LogisticRegression(random_state=40),
-          RandomForestClassifier(random_state=40)]
+knn_grid, rf_grid = tune_and_evaluate_models(x_train_norm, x_test_norm, y_train, y_test)
 
-for model in models:
-    fit_predict_eval(model=model,
-                     features_train=x_train_norm,
-                     features_test=x_test_norm,
-                     target_train=y_train,
-                     target_test=y_test)
+param_knn = knn_grid.best_params_
+knn_best_test = knn_grid.best_estimator_
+knn_accuracy = fit_predict_eval(knn_best_test, x_train_norm, x_test_norm, y_train, y_test)
 
-print(f'''The answer to the 1st question: yes
+param_rf = rf_grid.best_params_
+rf_best_test = rf_grid.best_estimator_
+rf_accuracy = fit_predict_eval(rf_best_test, x_train_norm, x_test_norm, y_train, y_test)
 
-The answer to the 2nd question: KNeighborsClassifier-0.953, RandomForestClassifier-0.937''')
+print(f'''K-nearest neighbours algorithm
+best estimator: {knn_best_test}
+accuracy: {knn_accuracy}
+''')
+print(f'''Random forest algorithm
+best estimator: {rf_best_test}
+accuracy: {rf_accuracy}
+''')
